@@ -20,11 +20,15 @@ def copy_model(from_model, to_model):
     for to_param, from_param in zip(to_model.parameters(), from_model.parameters()):
             to_param.data.copy_(from_param.data.clone())
 
-class SAC-agent(input_dim, output_dim, dim1):
+class SAC-Net(input_dim, output_dim, dim1, alpha, discout_rate):
     def __init__(self, input_dim, output_dim, dim1):
+        '''
+        params:
+            alpha - the learning rate when train the actor and critic losses 
+        '''
         super(SAC-agent, self).__init__()
         self.actor_network = PolicyNetwork(input_dim, dim1, output_dim)
-        # Create 2 critic netowrks for the purpose of debiasing value estimation 
+        # Create 2 critic netowrks for the purpose of debiasing value estimation
         self.critic_network = PolicyNetwork(input_dim, dim1, output_dim)
         self.critic2_network = PolicyNetwork(input_dim, dim1, output_dim)
         self.actor_optimizer = torch.optim.Adam(self.actor_network.paramseters())
@@ -36,12 +40,11 @@ class SAC-agent(input_dim, output_dim, dim1):
         copy_model(self.critic_network, self.critic1_target)
         copy_model(self.critic2_network, self.critic2_target)
         # Define learing rate and discount_rate
-        self.alpha = 0.001 
-        self.discount_rate = 0.1
+        self.alpha = alpha
+        self.discount_rate = discout_rate
 
     def produce_action_info(self, state):
-        # this is not a probability?
-        action_probs = self.actor_network(state)
+        action_probs = F.softmax(self.actor_network(state), dim=-1)
         greedy_action = torch.argmax(action_probs, dim=-1)
         action_distribution = torch.distributions.Categorical(action_probs)
         action = action_distribution.sample().cpu()
@@ -58,6 +61,7 @@ class SAC-agent(input_dim, output_dim, dim1):
         min_V = torch.min(Vpi_1, Vpi_2)
         policy_loss = action_probs * (self.alpha * log_action_probs - min_V).sum(dim=1).mean()
         log_action_probs = torch.sum(log_action_probs *  action_probs, dim=1)
+        return policy_loss, log_action_probs
 
     def calc_critic_loss(self, batch_states, batch_next_states, 
                         batch_action, batch_rewards):
@@ -76,8 +80,8 @@ class SAC-agent(input_dim, output_dim, dim1):
         return qf1_loss, qf2_loss
 
     
-def train(bs, train_list, valid_list, test_list, reward_list, action_list, 
-            optimizer, model, criterion, epoch, model_path):
+def train(bs, train_list, valid_list, test_list,
+            model, epoch, model_path, reward_list = None):
     '''
     params: 
         train_list/valid_list/test_list: 
@@ -114,9 +118,12 @@ def train(bs, train_list, valid_list, test_list, reward_list, action_list,
         data_batch = train_list[left: right]
         next_data_batch = train_list[next_left: next_right]
 
+        # Each item is a action-state pair
+        # temp_out is a numpy array of actions
         temp_out = np.array([item[0] for item in data_batch])
-        next_temp_out = np.array([item[0] for item in next_data_batch])
+        #next_temp_out = np.array([item[0] for item in next_data_batch])
 
+        # a/next_a is a list of to store states/next states
         a = [item[1] for item in data_batch]
         next_a = [item[1] for item in next_data_batch]
         s = a[0].shape[0]
@@ -142,17 +149,27 @@ def train(bs, train_list, valid_list, test_list, reward_list, action_list,
         temp_in_next = torch.from_numpy(next_b).float()
         temp_in_next = cuda_(temp_in_next)
 
-        #TODO: implement data batch for temp_action and temp_reward 
+        # temp_reward should get from the run_one_episode
 
-        actor_loss = model.calc_acttor_loss(temp_in)
-        critic_loss = model.calc_critic_loss(temp_in, temp_in_next, temp_action, temp_reward)
+        actor_loss, _ = model.calc_acttor_loss(temp_in)
+        q1_loss, q2_loss = model.calc_critic_loss(temp_in, temp_in_next, temp_out, temp_reward)
 
-        total_loss = actor_loss + critic_loss
-        optimizer.zero_grad()
-        total_loss.backward()
-        optimizer.step()
+        # Train actor
+        model.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        model.actor_optimizer.step()
 
-        epoch_loss += total_loss.data
+        if reward_list:
+            # Train critic
+            model.critic_optimizer.zero_grad()
+            q1_loss.backward()
+            model.critic_optimizer.step()
+
+            model.critic2_optimizer.zero_grad()
+            q2_loss.backward()
+            model.critic2_optimizer.step()
+
+        epoch_loss += actor_loss.data
         left, right = next_left, next_right
 
         if iter_ % 500 == 0:
