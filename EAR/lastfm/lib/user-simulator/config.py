@@ -105,7 +105,11 @@ class _Config():
 
 
         start = time.time()
-        model.load_state_dict(torch.load(fp))
+        if torch.cuda.is_available():
+            model.load_state_dict(torch.load(fp))
+        else:
+            model.load_state_dict(torch.load(fp, map_location=torch.device('cpu')))
+
         print('load FM model {} takes: {} secs'.format(fp, time.time() - start))
         self.emb_matrix = model.feature_emb.weight[..., :-1].detach().numpy()
         self.user_emb = model.ui_emb.weight[..., :-1].detach().numpy()

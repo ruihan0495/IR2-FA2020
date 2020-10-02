@@ -1,1 +1,5 @@
 EAR\lastfm\data
+EAR/lastfm/data/
+EAR/yelp/data/
+*pycache*
+*DS_Store
