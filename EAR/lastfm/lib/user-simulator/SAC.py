@@ -20,18 +20,18 @@ def copy_model(from_model, to_model):
     for to_param, from_param in zip(to_model.parameters(), from_model.parameters()):
             to_param.data.copy_(from_param.data.clone())
 
-class SAC-Net(nn.Module):
+class SAC_Net(nn.Module):
     def __init__(self, input_dim, output_dim, dim1, alpha, discount_rate):
         '''
         params:
             alpha - the learning rate when train the actor and critic losses 
         '''
-        super(SAC-agent, self).__init__()
+        super(SAC_Net, self).__init__()
         self.actor_network = PolicyNetwork(input_dim, dim1, output_dim)
         # Create 2 critic netowrks for the purpose of debiasing value estimation
         self.critic_network = PolicyNetwork(input_dim, dim1, output_dim)
         self.critic2_network = PolicyNetwork(input_dim, dim1, output_dim)
-        self.actor_optimizer = torch.optim.Adam(self.actor_network.paramseters())
+        self.actor_optimizer = torch.optim.Adam(self.actor_network.parameters())
         self.critic_optimizer = torch.optim.Adam(self.critic_network.parameters())
         self.critic2_optimizer = torch.optim.Adam(self.critic2_network.parameters())
         # Create 2 target networks to stablelize training
@@ -41,7 +41,7 @@ class SAC-Net(nn.Module):
         copy_model(self.critic2_network, self.critic2_target)
         # Define learing rate and discount_rate
         self.alpha = alpha
-        self.discount_rate = discout_rate
+        self.discount_rate = discount_rate
 
     def produce_action_info(self, state):
         action_probs = F.softmax(self.actor_network(state), dim=-1)

@@ -106,7 +106,10 @@ def run_one_episode(FM_model, user_id, busi_id, MAX_TURN, do_random, write_fp, s
 
             rewards = get_reward(the_agent.history_list, gamma, trick)
             if cfg.purpose == 'pretrain':
-                return numpy_list
+                if cfg.play_by != 'sac':
+                    return numpy_list
+                else:
+                    return (numpy_list, rewards)
             else:
                 return (the_agent.log_prob_list, rewards)
 
@@ -119,7 +122,10 @@ def run_one_episode(FM_model, user_id, busi_id, MAX_TURN, do_random, write_fp, s
             print('Max turn quit...')
             rewards = get_reward(the_agent.history_list, gamma, trick)
             if cfg.purpose == 'pretrain':
-                return numpy_list
+                if cfg.play_by != 'sac':
+                    return numpy_list
+                else:
+                    return (numpy_list, rewards)
             else:
                 return (the_agent.log_prob_list, rewards)
 

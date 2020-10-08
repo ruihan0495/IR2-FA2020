@@ -12,9 +12,9 @@ import time
 import numpy as np
 
 from config import global_config as cfg
-from epi import run_one_episode, update_PN_model
+from epi import run_one_episode, update_PN_model, get_reward
 from pn import PolicyNetwork
-from SAC import SAC-Net, train_sac
+from SAC import SAC_Net, train_sac
 import copy
 import random
 import json
@@ -148,9 +148,10 @@ def main():
             optimizer = torch.optim.RMSprop(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
 
     else:
-        PN_model = SAC-Net(input_dim=INPUT_DIM, dim1=64, output_dim=34, alpha=A.lr, gamma)
+        PN_model = SAC_Net(input_dim=INPUT_DIM, dim1=64, output_dim=34, alpha=A.lr, discount_rate=gamma)
 
     numpy_list = list()
+    rewards_list = list()
     NUMPY_COUNT = 0
 
     sample_dict = defaultdict(list)
@@ -217,14 +218,22 @@ def main():
                                                          optimizer1_fm, optimizer2_fm, A.alwaysupdate, start_facet,
                                                          A.mask, sample_dict)
             else:
-                current_np = run_one_episode(current_FM_model, user_id, item_id, A.mt, False, write_fp,
+                if A.playby != 'sac':
+                    current_np = run_one_episode(current_FM_model, user_id, item_id, A.mt, False, write_fp,
                                                          A.strategy, A.TopKTaxo,
                                                          PN_model, gamma, A.trick, A.mini,
                                                          optimizer1_fm, optimizer2_fm, A.alwaysupdate, start_facet,
                                                          A.mask, sample_dict)
-                numpy_list += current_np
-                if A.playby == 'sac':
-                    rewards_list = get_reward(the_agent.history_list, gamma, A.trick)
+                    numpy_list += current_np
+                
+                else:
+                    current_np, current_reward = run_one_episode(current_FM_model, user_id, item_id, A.mt, False, write_fp,
+                                                         A.strategy, A.TopKTaxo,
+                                                         PN_model, gamma, A.trick, A.mini,
+                                                         optimizer1_fm, optimizer2_fm, A.alwaysupdate, start_facet,
+                                                         A.mask, sample_dict)
+                    rewards_list += current_reward
+                    numpy_list += current_np        
 
             # update PN model
             if A.playby == 'policy' and A.eval != 1:
@@ -243,7 +252,7 @@ def main():
 
         # Write to pretrain numpy.
         if A.purpose == 'pretrain':
-            if A.playby != 'sac'
+            if A.playby != 'sac':
                 if len(numpy_list) > 5000:
                     with open('../../data/pretrain-numpy-data-{}/segment-{}-start-{}-end-{}.pk'.format(
                             A.mod, NUMPY_COUNT, A.startFrom, A.endAt), 'wb') as f:

@@ -389,11 +389,14 @@ class agent():
             # For Abs-Greedy Evaluation
             new_message = self.prepare_rec_message()
 
-        if cfg.play_by == 'policy':
+        if cfg.play_by == 'policy' or cfg.play_by == 'sac':
             s = torch.from_numpy(state_vector).float()
             s = Variable(s, requires_grad=False)
             self.PN_model.eval()
-            pred = self.PN_model(s)
+            if cfg.play_by == 'policy':
+                pred = self.PN_model(s)
+            else:
+                pred = self.PN_model.actor_network(s)
 
             prob = SoftMax(pred)
             c = Categorical(prob)
@@ -441,7 +444,7 @@ class agent():
                 new_message = self.prepare_rec_message()
         # end if policy
 
-        if cfg.play_by == 'policy':
+        if cfg.play_by == 'policy' or cfg.play_by == 'sac':
             self.action_tracker.append(action.data.numpy().tolist())
             self.candidate_length_tracker.append(len(self.recent_candidate_list))
 
