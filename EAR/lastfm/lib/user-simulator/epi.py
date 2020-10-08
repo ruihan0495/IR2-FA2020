@@ -21,6 +21,28 @@ def choose_start_facet(busi_id):
 
     return THE_FEATURE
 
+def get_reward_for_sac(history_list):
+    prev_reward = - 0.01
+
+    # -2: reach maximum turn, end.
+    # -1: recommend unsuccessful
+    # 0: ask attribute, unsuccessful
+    # 1: ask attribute, successful
+    # 2: recommend successful!
+
+    r_dict = {
+        2: 1 + prev_reward,
+        1: 0.1 + prev_reward,
+        0: 0 + prev_reward,
+        -1: 0 + prev_reward,
+        -2: -0.3
+    }
+    rewards = [r_dict[item] for item in history_list]
+    rewards = torch.Tensor(rewards)
+    print('history list: {}'.format(history_list))
+    print('reward: {}'.format(rewards))
+    return rewards
+
 
 def get_reward(history_list, gamma, trick):
     prev_reward = - 0.01
@@ -104,7 +126,11 @@ def run_one_episode(FM_model, user_id, busi_id, MAX_TURN, do_random, write_fp, s
             the_agent.history_list.append(2)
             print('Rec Success! in Turn: {}.'.format(the_agent.turn_count))
 
-            rewards = get_reward(the_agent.history_list, gamma, trick)
+            if cfg.play_by != 'sac':
+                rewards = get_reward(the_agent.history_list, gamma, trick)
+            else:
+                rewards = get_reward_for_sac(the_agent.history_list)
+            
             if cfg.purpose == 'pretrain':
                 if cfg.play_by != 'sac':
                     return numpy_list
