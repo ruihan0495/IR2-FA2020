@@ -20,8 +20,8 @@ def copy_model(from_model, to_model):
     for to_param, from_param in zip(to_model.parameters(), from_model.parameters()):
             to_param.data.copy_(from_param.data.clone())
 
-class SAC-Net(input_dim, output_dim, dim1, alpha, discout_rate):
-    def __init__(self, input_dim, output_dim, dim1):
+class SAC-Net(nn.Module):
+    def __init__(self, input_dim, output_dim, dim1, alpha, discount_rate):
         '''
         params:
             alpha - the learning rate when train the actor and critic losses 
@@ -80,7 +80,7 @@ class SAC-Net(input_dim, output_dim, dim1, alpha, discout_rate):
         return qf1_loss, qf2_loss
 
     
-def train(bs, train_list, valid_list, test_list,
+def train_sac(bs, train_list, valid_list, test_list,
             model, epoch, model_path, reward_list = None):
     '''
     params: 
@@ -173,10 +173,67 @@ def train(bs, train_list, valid_list, test_list,
         left, right = next_left, next_right
 
         if iter_ % 500 == 0:
-            print('{} seconds to finished {}% cumulative loss is: {}'.format(time.time() - start, iter_ * 100.0 / max_iter, epoch_loss / iter_))
+            print('{} seconds to finished {}% cumulative loss is: {}'.format(time.time() - start, iter_ * 100.0 / max_iter, epoch_loss / iter_))     
 
 
-def online_update(model, reward):
-    # TODO: perform online update in reflection stage
-    raise NotImplementedError()        
-        
+def main():
+    parser = argparse.ArgumentParser(description="Soft Actor Critic Network")
+    parser.add_argument('-inputdim', type=int, dest='inputdim', help='input dimension')
+    parser.add_argument('-hiddendim', type=int, dest='hiddendim', help='hidden dimension')
+    parser.add_argument('-outputdim', type=int, dest='outputdim', help='output dimension')
+    parser.add_argument('-bs', type=int, dest='bs', help='batch size')
+    parser.add_argument('-lr', type=float, dest='lr', help='learning rate')
+    #parser.add_argument('-decay', type=float, dest='decay', help='weight decay')
+    parser.add_argument('-discount_rate', type=float, dest='discoutn_rate', help='discount_rate')
+    parser.add_argument('-mod', type=str, dest='mod', help='mod') # ear crm
+
+    A = parser.parse_args()
+    print('Arguments loaded!')
+    if A.mod == 'ear':
+        inputdim = 89
+    else:
+        inputdim = 33
+    PN = SAC-Net(input_dim=inputdim, dim1=A.hiddendim, output_dim=A.outputdim, alpha=A.lr, discout_rate=A.decay)
+
+    cuda_(PN)
+    print('Model on GPU')
+    data_list = list()
+
+    dir = '../../data/pretrain-numpy-data-{}'.format(A.mod)
+    files = os.listdir(dir)
+    file_paths = [dir + '/' + f for f in files]
+
+    i = 0
+    for fp in file_paths:
+        with open(fp, 'rb') as f:
+            try:
+                data_list += pickle.load(f)
+                i += 1
+            except:
+                pass
+    print('total files: {}'.format(i))
+    data_list = data_list[: int(len(data_list) / 1.5)]
+    print('length of data list is: {}'.format(len(data_list)))
+
+    random.shuffle(data_list)
+
+    train_list = data_list[: int(len(data_list) * 0.7)]
+    valid_list = data_list[int(len(data_list) * 0.7): int(len(data_list) * 0.9)]
+    test_list = data_list[int(len(data_list) * 0.9):]
+    print('train length: {}, valid length: {}, test length: {}'.format(len(train_list), len(valid_list), len(test_list)))
+    sleep(1)  # let you see this
+
+    if A.optim == 'Ada':
+        optimizer = torch.optim.Adagrad(PN.parameters(), lr=A.lr, weight_decay=A.decay)
+    if A.optim == 'Adam':
+        optimizer = torch.optim.Adam(PN.parameters(), lr=A.lr, weight_decay=A.decay)
+    criterion = nn.CrossEntropyLoss()
+
+    for epoch in range(8):
+        random.shuffle(train_list)
+        model_name = '../../data/PN-model-{}/pretrain-sac-model.pt'.format(A.mod)
+        train_sac(A.bs, train_list, valid_list, test_list, PN, epoch, model_path, reward_list = None)
+
+
+if __name__ == '__main__':
+    main()
