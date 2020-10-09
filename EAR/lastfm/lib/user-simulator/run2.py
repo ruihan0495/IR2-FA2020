@@ -1,6 +1,7 @@
 # BB-8 and R2-D2 are best friends.
 
 import sys
+import os
 sys.path.insert(0, '../FM')
 sys.path.insert(0, '../yelp')
 
@@ -27,7 +28,6 @@ for k, v in cfg.item_dict.items():
         the_max = max(v['feature_index'])
 print('The max is: {}'.format(the_max))
 FEATURE_COUNT = the_max + 1
-
 
 def cuda_(var):
     return var.cuda() if torch.cuda.is_available()else var
@@ -261,21 +261,23 @@ def main():
                     NUMPY_COUNT += 1
                     numpy_list = list()
             else:
-                if len(numpy_list) > 5000:
-                    with open('../../data/pretrain-sac-numpy-data-{}/segment-{}-start-{}-end-{}.pk'.format(
-                            A.mod, NUMPY_COUNT, A.startFrom, A.endAt), 'wb') as f:
+                # In SAC mode, collect both numpy_list and rewards_list as training data 
+                if len(numpy_list) > 5000 or len(rewards_list) > 5000:
+                    assert len(rewards_list) == len(numpy_list), "rewards and state-action pairs have different size!"
+                    directory = '../../data/pretrain-sac-numpy-data-{}/segment-{}-start-{}-end-{}.pk'.format(
+                            A.mod, NUMPY_COUNT, A.startFrom, A.endAt)
+                    rewards_directory = '../../data/pretrain-sac-reward-data-{}/segment-{}-start-{}-end-{}.pk'.format(
+                            A.mod, NUMPY_COUNT, A.startFrom, A.endAt)
+                    with open(directory, 'wb') as f:
                         pickle.dump(numpy_list, f)
-                        print('Have written 5000 numpy arrays!')
-                    NUMPY_COUNT += 1
-                    numpy_list = list()
-                # Write to rewards list to train SAC
-                if len(rewards_list) > 5000:
-                    with open('../../data/pretrain-sac-reward-data-{}/segment-{}-start-{}-end-{}.pk'.format(
-                            A.mod, NUMPY_COUNT, A.startFrom, A.endAt), 'wb') as f:
+                        print('Have written 5000 numpy arrays for SAC!')
+                    with open(rewards_directory, 'wb') as f:
                         pickle.dump(rewards_list, f)
                         print('Have written 5000 rewrds for SAC!')
                     NUMPY_COUNT += 1
                     numpy_list = list()
+                    rewards_list = list()
+                
         # numpy_list is a list of list.
         # e.g. numpy_list[0][0]: int, indicating the action.
         # numpy_list[0][1]: a one-d array of length 89 for EAR, and 33 for CRM.
