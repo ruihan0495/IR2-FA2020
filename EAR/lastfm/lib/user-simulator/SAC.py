@@ -21,7 +21,8 @@ def copy_model(from_model, to_model):
             to_param.data.copy_(from_param.data.clone())
 
 class SAC_Net(nn.Module):
-    def __init__(self, input_dim, output_dim, dim1, alpha, discount_rate):
+    def __init__(self, input_dim, output_dim, dim1, actor_lr, 
+                critic_lr, discount_rate, actor_w_decay, critic_w_decay):
         '''
         params:
             alpha - the learning rate when train the actor and critic losses 
@@ -31,16 +32,15 @@ class SAC_Net(nn.Module):
         # Create 2 critic netowrks for the purpose of debiasing value estimation
         self.critic_network = PolicyNetwork(input_dim, dim1, output_dim)
         self.critic2_network = PolicyNetwork(input_dim, dim1, output_dim)
-        self.actor_optimizer = torch.optim.Adam(self.actor_network.parameters())
-        self.critic_optimizer = torch.optim.Adam(self.critic_network.parameters())
-        self.critic2_optimizer = torch.optim.Adam(self.critic2_network.parameters())
+        self.actor_optimizer = torch.optim.Adam(self.actor_network.parameters(), lr=actor_lr, weight_decay=actor_w_decay)
+        self.critic_optimizer = torch.optim.Adam(self.critic_network.parameters(), lr=critic_lr, weight_decay=critic_w_decay)
+        self.critic2_optimizer = torch.optim.Adam(self.critic2_network.parameters(),lr=critic_lr, weight_decay=critic_w_decay)
         # Create 2 target networks to stablelize training
         self.critic1_target = PolicyNetwork(input_dim, dim1, output_dim)
         self.critic2_target = PolicyNetwork(input_dim, dim1, output_dim)
         copy_model(self.critic_network, self.critic1_target)
         copy_model(self.critic2_network, self.critic2_target)
-        # Define learing rate and discount_rate
-        self.alpha = alpha
+        # Define discount_rate
         self.discount_rate = discount_rate
 
     def produce_action_info(self, state):
@@ -76,7 +76,7 @@ class SAC_Net(nn.Module):
         qf1 = self.critic_network(batch_states).gather(1, batch_action)
         qf2 = self.critic2_network(batch_states).gather(1, batch_action)
         qf1_loss = F.mse_loss(qf1, next_q)
-        qf2_loss = F.mse_loss(qd2, next_q)
+        qf2_loss = F.mse_loss(qf2, next_q)
         return qf1_loss, qf2_loss
 
     
@@ -149,7 +149,8 @@ def train_sac(bs, train_list, valid_list, test_list,
         temp_in_next = torch.from_numpy(next_b).float()
         temp_in_next = cuda_(temp_in_next)
 
-        # temp_reward should get from the run_one_episode
+        temp_reward = torch.from_numpy(reward_list[left:right])
+        temp_reward = cuda_(temp_reward)
 
         actor_loss, _ = model.calc_acttor_loss(temp_in)
         q1_loss, q2_loss = model.calc_critic_loss(temp_in, temp_in_next, temp_out, temp_reward)
@@ -182,9 +183,11 @@ def main():
     parser.add_argument('-hiddendim', type=int, dest='hiddendim', help='hidden dimension')
     parser.add_argument('-outputdim', type=int, dest='outputdim', help='output dimension')
     parser.add_argument('-bs', type=int, dest='bs', help='batch size')
-    parser.add_argument('-lr', type=float, dest='lr', help='learning rate')
-    #parser.add_argument('-decay', type=float, dest='decay', help='weight decay')
-    parser.add_argument('-discount_rate', type=float, dest='discoutn_rate', help='discount_rate')
+    parser.add_argument('-actor_lr', type=float, dest='actor_lr', help='actor learning rate')
+    parser.add_argument('-critic_lr', type=float, dest='discrete_lr', help='critic learning rate')
+    parser.add_argument('-actor_decay', type=float, dest='actor_decay', help='weight decay for actor')
+    parser.add_argument('-critic_decay', type=float, dest='critic_decay', help='weight decay for critic')
+    parser.add_argument('-discount_rate', type=float, dest='discount_rate', help='discount_rate')
     parser.add_argument('-mod', type=str, dest='mod', help='mod') # ear crm
 
     A = parser.parse_args()
@@ -193,7 +196,8 @@ def main():
         inputdim = 89
     else:
         inputdim = 33
-    PN = SAC-Net(input_dim=inputdim, dim1=A.hiddendim, output_dim=A.outputdim, alpha=A.lr, discout_rate=A.decay)
+    PN = SAC_Net(input_dim=inputdim, dim1=A.hiddendim, output_dim=A.outputdim, alpha=A.lr, 
+                    discout_rate=A.discount_rate,actor_w_decay=A.actor_decay, critic_w_decay=A.critic_w_decay)
 
     cuda_(PN)
     print('Model on GPU')
@@ -216,6 +220,7 @@ def main():
     print('length of data list is: {}'.format(len(data_list)))
 
     random.shuffle(data_list)
+    # TODO: add reward data 
 
     train_list = data_list[: int(len(data_list) * 0.7)]
     valid_list = data_list[int(len(data_list) * 0.7): int(len(data_list) * 0.9)]
@@ -223,16 +228,18 @@ def main():
     print('train length: {}, valid length: {}, test length: {}'.format(len(train_list), len(valid_list), len(test_list)))
     sleep(1)  # let you see this
 
+    '''
     if A.optim == 'Ada':
         optimizer = torch.optim.Adagrad(PN.parameters(), lr=A.lr, weight_decay=A.decay)
     if A.optim == 'Adam':
         optimizer = torch.optim.Adam(PN.parameters(), lr=A.lr, weight_decay=A.decay)
     criterion = nn.CrossEntropyLoss()
+    '''
 
     for epoch in range(8):
         random.shuffle(train_list)
         model_name = '../../data/PN-model-{}/pretrain-sac-model.pt'.format(A.mod)
-        train_sac(A.bs, train_list, valid_list, test_list, PN, epoch, model_path, reward_list = None)
+        train_sac(A.bs, train_list, valid_list, test_list, PN, epoch, PATH, reward_list)
 
 
 if __name__ == '__main__':
