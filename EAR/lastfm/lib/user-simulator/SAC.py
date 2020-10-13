@@ -8,7 +8,6 @@ import numpy as np
 from torch.nn import functional as F
 import time
 from torch.autograd import gradcheck
-from pn import PolicyNetwork
 from sklearn.metrics import classification_report
 import argparse
 
