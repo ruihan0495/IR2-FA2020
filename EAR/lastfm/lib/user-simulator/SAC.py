@@ -9,6 +9,8 @@ from torch.nn import functional as F
 import time
 from torch.autograd import gradcheck
 from pn import PolicyNetwork
+from sklearn.metrics import classification_report
+import argparse
 
 '''
 Note: we have contacted the authors for the data file ptetrin-numpy-data-ear
@@ -79,20 +81,72 @@ class SAC_Net(nn.Module):
         qf2_loss = F.mse_loss(qf2, next_q)
         return qf1_loss, qf2_loss
 
+def validate(purpose, train_list, train_reward, 
+            valid_list, valid_reward, test_list, test_reward, model):
+    model.eval()
+
+    if purpose == 1:
+        data = train_list
+        reward = train_reward
+    elif purpose == 2:
+        data = valid_list
+        reward = valid_reward
+    else:
+        data = test_list
+        reward = test_reward
+
+    data = data
+    reward = reward
+    bs = 256
+    max_iter = int(len(data) / bs)
+    start = time.time()
+    epoch_loss = 0
+    correct = 0
+
+    y_true, y_pred = list(), list()
+    for iter_ in range(max_iter):
+        left, right = iter_ * bs, min(len(train_list), (iter_ + 1) * bs)
+        data_batch = data[left: right]
+        reward_batch = reward[left: right]
+
+        temp_out = np.array([item[0] for item in data_batch])
+
+        a = [item[1] for item in data_batch]
+        s = a[0].shape[0]
+
+        b = np.concatenate(a).reshape(-1, s)
+
+        temp_in = torch.from_numpy(b).float()
+        temp_target = torch.from_numpy(temp_out).long()
+
+        temp_reward = torch.from_numpy(reward_batch)
+        temp_reward = cuda_(temp_reward)
+
+        temp_in, temp_target = cuda_(temp_in), cuda_(temp_target)
+
+        pred = model.actor_network(temp_in)
+        y_true += temp_out.tolist()
+        pred_result = pred.data.max(1)[1]
+        correct += sum(np.equal(pred_result.cpu().numpy(), temp_out))
+
+        y_pred += pred_result.cpu().numpy().tolist()
+
+    print('Validating purpose {} takes {} seconds, cumulative loss is: {}, accuracy: {}%'.format(purpose, time.time() - start, epoch_loss / max_iter, correct * 100.0 / (max_iter * bs)))
+    print(classification_report(y_true, y_pred))
+    model.train()
+
+
+
+
     
 def train_sac(bs, train_list, valid_list, test_list,
-            model, epoch, model_path, reward_list = None):
-    '''
-    params: 
-        train_list/valid_list/test_list: 
+            model, epoch, model_path, train_reward = None, 
+            valid_reward = None, test_reward = None):
 
-        reward_list:
-
-        action_list:
-    '''
     print('-------validating before training {} epoch-------'.format(epoch))
     if epoch > 0:
-        validate(2, train_list, valid_list, test_list, model)
+        validate(2, train_list, train_reward, valid_list, valid_reward, 
+        test_list, test_reward, model)
 
     if epoch == 7:
         PATH = model_path
@@ -101,7 +155,11 @@ def train_sac(bs, train_list, valid_list, test_list,
         return
 
     model.train()
-    random.shuffle(train_list)
+
+    idx =  random.randint(len(train_list))
+    train_list = train_list[idx]
+    train_reward = train_reward[idx]
+
     epoch_loss = 0
     max_iter = int(len(train_list) / bs)
     start = time.time()
@@ -149,7 +207,7 @@ def train_sac(bs, train_list, valid_list, test_list,
         temp_in_next = torch.from_numpy(next_b).float()
         temp_in_next = cuda_(temp_in_next)
 
-        temp_reward = torch.from_numpy(reward_list[left:right])
+        temp_reward = torch.from_numpy(train_reward[left:right])
         temp_reward = cuda_(temp_reward)
 
         actor_loss, _ = model.calc_acttor_loss(temp_in)
@@ -160,7 +218,7 @@ def train_sac(bs, train_list, valid_list, test_list,
         actor_loss.backward()
         model.actor_optimizer.step()
 
-        if reward_list:
+        if train_reward:
             # Train critic
             model.critic_optimizer.zero_grad()
             q1_loss.backward()
@@ -202,11 +260,17 @@ def main():
     cuda_(PN)
     print('Model on GPU')
     data_list = list()
+    reward_list = list()
 
-    dir = '../../data/pretrain-numpy-data-{}'.format(A.mod)
-    files = os.listdir(dir)
-    file_paths = [dir + '/' + f for f in files]
+    np_dir = '../../data/pretrain-sac-numpy-data-{}'.format(A.mod)
+    reward_dir = '../../data/pretrain-sac-reward-data-{}'.format(A.mod)
+    files = os.listdir(np_dir)
+    file_paths = [np_dir + '/' + f for f in files]
 
+    reward_files = os.listdir(reward_dir)
+    reward_paths = [reward_dir + '/' + r for r in reward_files] 
+    
+    # Read data files
     i = 0
     for fp in file_paths:
         with open(fp, 'rb') as f:
@@ -216,16 +280,32 @@ def main():
             except:
                 pass
     print('total files: {}'.format(i))
+
+    # Read reward files
+    j = 0
+    for rp in reward_paths:
+        with open(rp, 'rb') as f:
+            try:
+                reward_list += pickle.load(f)
+                j += 1
+            except:
+                pass
+    print('total reward files: {}'.format(j))
+
     data_list = data_list[: int(len(data_list) / 1.5)]
-    print('length of data list is: {}'.format(len(data_list)))
+    reward_list = reward_list[: int(len(reward_list) / 1.5)]
+    print('length of data list is: {}, length of reward list is: {}'.format(len(data_list), len(reward_list)))
 
-    random.shuffle(data_list)
-    # TODO: add reward data 
+    # Shuffle both data_list and reward list
+    idx = random.randint(len(data_list))
+    data_list = data_list[idx]
+    reward_list = reward_list[idx]
 
-    train_list = data_list[: int(len(data_list) * 0.7)]
-    valid_list = data_list[int(len(data_list) * 0.7): int(len(data_list) * 0.9)]
-    test_list = data_list[int(len(data_list) * 0.9):]
+    train_list, train_reward = data_list[: int(len(data_list) * 0.7)], reward_list[: int(len(reward_list) * 0.7)]
+    valid_list, valid_reward = data_list[int(len(data_list) * 0.7): int(len(data_list) * 0.9)], reward_list[int(len(reward_list) * 0.7): int(len(reward_list) * 0.9)]
+    test_list, test_reward = data_list[int(len(data_list) * 0.9):], reward_list[int(len(reward_list) * 0.9):] 
     print('train length: {}, valid length: {}, test length: {}'.format(len(train_list), len(valid_list), len(test_list)))
+    print('train reward length: {}, valid reward length: {}, test reward length: {}'.format(len(train_reward), len(valid_reward), len(test_reward)))
     sleep(1)  # let you see this
 
     '''
@@ -237,9 +317,11 @@ def main():
     '''
 
     for epoch in range(8):
-        random.shuffle(train_list)
+        idx =  random.randint(len(train_list))
+        train_list = train_list[idx]
+        reward_list = reward_list[idx]
         model_name = '../../data/PN-model-{}/pretrain-sac-model.pt'.format(A.mod)
-        train_sac(A.bs, train_list, valid_list, test_list, PN, epoch, PATH, reward_list)
+        train_sac(A.bs, train_list, valid_list, test_list, PN, epoch, model_name, reward_list)
 
 
 if __name__ == '__main__':
