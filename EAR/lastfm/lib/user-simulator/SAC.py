@@ -126,6 +126,7 @@ def validate(purpose, train_list, train_reward,
         temp_in = torch.from_numpy(b).float()
         temp_target = torch.from_numpy(temp_out).long()
 
+        reward_batch = np.asarray(train_reward[left:right])
         temp_reward = torch.from_numpy(reward_batch)
         temp_reward = cuda_(temp_reward)
 

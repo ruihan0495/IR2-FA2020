@@ -46,10 +46,13 @@ def main():
     # the command used for FM, check out /EAR/lastfm/FM/
     parser.add_argument('-optim', type=str, dest='optim', help='optimizer')
     # the optimizer for policy network
-    parser.add_argument('-lr', type=float, dest='lr', help='lr')
-    # learning rate of policy network
-    parser.add_argument('-decay', type=float, dest='decay', help='decay')
+    parser.add_argument('-actor_lr', type=float, dest='actor_lr', help='actor learning rate')
+    # learning rate of Actor network
+    parser.add_argument('-critic_lr', type=float, dest='critic_lr', help='critic learning rate')
+    # learning rate of the Critic network
+    parser.add_argument('-actor_decay', type=float, dest='actor_decay', help='actor weight decay')
     # weight decay
+    parser.add_argument('-critic_decay', type=float, dest='critic_decay', help='critic weight decay')
     parser.add_argument('-TopKTaxo', type=int, dest='TopKTaxo', help='TopKTaxo')
     # how many 2-layer feature will represent a big feature. Only Yelp dataset use this param, lastFM have no effect.
     parser.add_argument('-gamma', type=float, dest='gamma', help='gamma')
@@ -148,7 +151,8 @@ def main():
             optimizer = torch.optim.RMSprop(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
 
     else:
-        PN_model = SAC_Net(input_dim=INPUT_DIM, dim1=64, output_dim=34, alpha=A.lr, discount_rate=gamma)
+        PN_model = SAC_Net(input_dim=INPUT_DIM, dim1=64, output_dim=34, actor_lr=A.actor_lr,
+         critic_lr=A.critic_lr, discount_rate=gamma, actor_w_decay=A.actor_decay, critic_w_decay=A.critic_decay)
 
     numpy_list = list()
     rewards_list = list()
