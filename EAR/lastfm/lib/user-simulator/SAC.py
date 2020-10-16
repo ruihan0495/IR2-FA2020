@@ -4,18 +4,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 import json
 import pickle
+import os
+import sys
 import numpy as np
 from torch.nn import functional as F
 import time
 from torch.autograd import gradcheck
 from sklearn.metrics import classification_report
 import argparse
+from pn import PolicyNetwork
+from pathlib import Path, PureWindowsPath
+from time import sleep
 
 '''
 Note: we have contacted the authors for the data file ptetrin-numpy-data-ear
 to re-train the actor-critc policy network from scratch. We also plan to incorporate the 
 online update for the policy network in reflection stage.
 '''
+def cuda_(var):
+    return var.cuda() if torch.cuda.is_available() else var
 
 def copy_model(from_model, to_model):
     for to_param, from_param in zip(to_model.parameters(), from_model.parameters()):
@@ -26,7 +33,7 @@ class SAC_Net(nn.Module):
                 critic_lr, discount_rate, actor_w_decay, critic_w_decay):
         '''
         params:
-            alpha - the learning rate when train the actor and critic losses 
+            
         '''
         super(SAC_Net, self).__init__()
         self.actor_network = PolicyNetwork(input_dim, dim1, output_dim)
@@ -60,22 +67,23 @@ class SAC_Net(nn.Module):
         Vpi_1 = self.critic_network(batch_states)
         Vpi_2 = self.critic2_network(batch_states)
         min_V = torch.min(Vpi_1, Vpi_2)
-        policy_loss = action_probs * (self.alpha * log_action_probs - min_V).sum(dim=1).mean()
+        policy_loss = (action_probs * (self.discount_rate * log_action_probs - min_V)).sum(dim=1).mean()
         log_action_probs = torch.sum(log_action_probs *  action_probs, dim=1)
         return policy_loss, log_action_probs
 
     def calc_critic_loss(self, batch_states, batch_next_states, 
                         batch_action, batch_rewards):
-        with torch.np_grad():
+        batch_action = cuda_(torch.LongTensor(batch_action)).reshape(-1,1)
+        with torch.no_grad():
             next_state_action, action_probs, log_action_probs, _ = self.produce_action_info(batch_next_states)
             target1 = self.critic1_target(batch_next_states)
             target2 = self.critic2_target(batch_next_states)
-            min_next_target = action_probs * (torch.min(target1, target2) - self.alpha * log_action_probs)
+            min_next_target = action_probs * (torch.min(target1, target2) - self.discount_rate * log_action_probs)
             min_next_target = min_next_target.sum(dim=1).unsqueeze(-1)
             next_q = batch_rewards + self.discount_rate * min_next_target
-        
         qf1 = self.critic_network(batch_states).gather(1, batch_action)
         qf2 = self.critic2_network(batch_states).gather(1, batch_action)
+        next_q = next_q.max(1)[0].unsqueeze(-1)
         qf1_loss = F.mse_loss(qf1, next_q)
         qf2_loss = F.mse_loss(qf2, next_q)
         return qf1_loss, qf2_loss
@@ -155,9 +163,9 @@ def train_sac(bs, train_list, valid_list, test_list,
 
     model.train()
 
-    idx =  random.randint(len(train_list))
-    train_list = train_list[idx]
-    train_reward = train_reward[idx]
+    c = list(zip(train_list, train_reward))
+    random.shuffle(c)
+    train_list, train_reward = zip(*c)
 
     epoch_loss = 0
     max_iter = int(len(train_list) / bs)
@@ -205,8 +213,9 @@ def train_sac(bs, train_list, valid_list, test_list,
 
         temp_in_next = torch.from_numpy(next_b).float()
         temp_in_next = cuda_(temp_in_next)
-
-        temp_reward = torch.from_numpy(train_reward[left:right])
+        
+        reward_batch = np.asarray(train_reward[left:right])
+        temp_reward = torch.from_numpy(reward_batch)
         temp_reward = cuda_(temp_reward)
 
         actor_loss, _ = model.calc_acttor_loss(temp_in)
@@ -241,7 +250,7 @@ def main():
     parser.add_argument('-outputdim', type=int, dest='outputdim', help='output dimension')
     parser.add_argument('-bs', type=int, dest='bs', help='batch size')
     parser.add_argument('-actor_lr', type=float, dest='actor_lr', help='actor learning rate')
-    parser.add_argument('-critic_lr', type=float, dest='discrete_lr', help='critic learning rate')
+    parser.add_argument('-critic_lr', type=float, dest='critic_lr', help='critic learning rate')
     parser.add_argument('-actor_decay', type=float, dest='actor_decay', help='weight decay for actor')
     parser.add_argument('-critic_decay', type=float, dest='critic_decay', help='weight decay for critic')
     parser.add_argument('-discount_rate', type=float, dest='discount_rate', help='discount_rate')
@@ -253,21 +262,25 @@ def main():
         inputdim = 89
     else:
         inputdim = 33
-    PN = SAC_Net(input_dim=inputdim, dim1=A.hiddendim, output_dim=A.outputdim, alpha=A.lr, 
-                    discout_rate=A.discount_rate,actor_w_decay=A.actor_decay, critic_w_decay=A.critic_w_decay)
+    PN = SAC_Net(input_dim=inputdim, dim1=A.hiddendim, output_dim=A.outputdim, actor_lr=A.actor_lr, critic_lr=A.critic_lr, 
+                    discount_rate=A.discount_rate,actor_w_decay=A.actor_decay, critic_w_decay=A.critic_decay)
 
     cuda_(PN)
     print('Model on GPU')
     data_list = list()
     reward_list = list()
-
-    np_dir = '../../data/pretrain-sac-numpy-data-{}'.format(A.mod)
-    reward_dir = '../../data/pretrain-sac-reward-data-{}'.format(A.mod)
+    
+    np_dir = "../../data/pretrain-sac-numpy-data-{}".format(A.mod)
+    reward_dir = "../../data/pretrain-sac-reward-data-{}".format(A.mod)
     files = os.listdir(np_dir)
-    file_paths = [np_dir + '/' + f for f in files]
+    file_paths = [Path(np_dir + "/" + f) for f in files]
 
     reward_files = os.listdir(reward_dir)
-    reward_paths = [reward_dir + '/' + r for r in reward_files] 
+    reward_paths = [Path(reward_dir + "/" + r) for r in reward_files] 
+    is_windows = sys.platform.startswith('win')
+    if is_windows:
+        file_paths = [PureWindowsPath(file_path) for file_path in file_paths]
+        reward_paths = [PureWindowsPath(reward_path) for reward_path in reward_paths]
     
     # Read data files
     i = 0
@@ -296,9 +309,9 @@ def main():
     print('length of data list is: {}, length of reward list is: {}'.format(len(data_list), len(reward_list)))
 
     # Shuffle both data_list and reward list
-    idx = random.randint(len(data_list))
-    data_list = data_list[idx]
-    reward_list = reward_list[idx]
+    c = list(zip(data_list, reward_list))
+    random.shuffle(c)
+    data_list, reward_list = zip(*c)
 
     train_list, train_reward = data_list[: int(len(data_list) * 0.7)], reward_list[: int(len(reward_list) * 0.7)]
     valid_list, valid_reward = data_list[int(len(data_list) * 0.7): int(len(data_list) * 0.9)], reward_list[int(len(reward_list) * 0.7): int(len(reward_list) * 0.9)]
@@ -316,11 +329,13 @@ def main():
     '''
 
     for epoch in range(8):
-        idx =  random.randint(len(train_list))
-        train_list = train_list[idx]
-        reward_list = reward_list[idx]
+        c = list(zip(train_list, train_reward))
+        random.shuffle(c)
+        train_list, train_reward = zip(*c)
         model_name = '../../data/PN-model-{}/pretrain-sac-model.pt'.format(A.mod)
-        train_sac(A.bs, train_list, valid_list, test_list, PN, epoch, model_name, reward_list)
+        if is_windows:
+            model_name = PureWindowsPath(model_name)
+        train_sac(A.bs, train_list, valid_list, test_list, PN, epoch, model_name, train_reward, valid_reward, test_reward)
 
 
 if __name__ == '__main__':
