@@ -9,6 +9,8 @@ from torch.nn import functional as F
 import time
 from torch.autograd import gradcheck
 import argparse
+import sys
+from pathlib import Path, PureWindowsPath
 
 from pn import PolicyNetwork
 from sklearn.metrics import classification_report
@@ -141,10 +143,14 @@ def main():
     print('Model on GPU')
     data_list = list()
 
-    dir = '../../data/pretrain-numpy-data-{}'.format(A.mod)
+    dir = "../../data/pretrain-sac-numpy-data-{}".format(A.mod)
+    #dir = '../../data/pretrain-numpy-data-{}'.format(A.mod)
     files = os.listdir(dir)
     file_paths = [dir + '/' + f for f in files]
-
+    is_windows = sys.platform.startswith('win')
+    if is_windows:
+        file_paths = [PureWindowsPath(file_path) for file_path in file_paths]
+    
     i = 0
     for fp in file_paths:
         with open(fp, 'rb') as f:

@@ -62,12 +62,15 @@ class SAC_Net(nn.Module):
         log_action_probs = torch.log(action_probs + z)
         return action, action_probs, log_action_probs, greedy_action 
 
-    def calc_acttor_loss(self, batch_states):
-        action, action_probs, log_action_probs, _ = self.produce_action_info(batch_states)
+    def calc_acttor_loss(self, batch_states, batch_action):
+        criterion = nn.CrossEntropyLoss()
+        _, action_probs, log_action_probs, _ = self.produce_action_info(batch_states)
         Vpi_1 = self.critic_network(batch_states)
         Vpi_2 = self.critic2_network(batch_states)
         min_V = torch.min(Vpi_1, Vpi_2)
         policy_loss = (action_probs * (self.discount_rate * log_action_probs - min_V)).sum(dim=1).mean()
+        batch_action = cuda_(torch.from_numpy(batch_action).long())
+        policy_loss += 0.5*criterion(action_probs, batch_action)
         log_action_probs = torch.sum(log_action_probs *  action_probs, dim=1)
         return policy_loss, log_action_probs
 
@@ -219,7 +222,7 @@ def train_sac(bs, train_list, valid_list, test_list,
         temp_reward = torch.from_numpy(reward_batch)
         temp_reward = cuda_(temp_reward)
 
-        actor_loss, _ = model.calc_acttor_loss(temp_in)
+        actor_loss, _ = model.calc_acttor_loss(temp_in, temp_out)
         q1_loss, q2_loss = model.calc_critic_loss(temp_in, temp_in_next, temp_out, temp_reward)
 
         # Train actor
@@ -239,6 +242,12 @@ def train_sac(bs, train_list, valid_list, test_list,
 
         epoch_loss += actor_loss.data
         left, right = next_left, next_right
+
+        # Update target critic network
+        for param, target_param in zip(model.critic_network.parameters(), model.critic1_target.parameters()):
+                target_param.data.copy_(0.005 * param.data + (1-0.005) * target_param.data)
+        for param, target_param in zip(model.critic2_network.parameters(), model.critic2_target.parameters()):
+                target_param.data.copy_(0.005 * param.data + (1-0.005) * target_param.data)
 
         if iter_ % 500 == 0:
             print('{} seconds to finished {}% cumulative loss is: {}'.format(time.time() - start, iter_ * 100.0 / max_iter, epoch_loss / iter_))     
@@ -274,10 +283,10 @@ def main():
     np_dir = "../../data/pretrain-sac-numpy-data-{}".format(A.mod)
     reward_dir = "../../data/pretrain-sac-reward-data-{}".format(A.mod)
     files = os.listdir(np_dir)
-    file_paths = [Path(np_dir + "/" + f) for f in files]
+    file_paths = [np_dir + "/" + f for f in files]
 
     reward_files = os.listdir(reward_dir)
-    reward_paths = [Path(reward_dir + "/" + r) for r in reward_files] 
+    reward_paths = [reward_dir + "/" + r for r in reward_files] 
     is_windows = sys.platform.startswith('win')
     if is_windows:
         file_paths = [PureWindowsPath(file_path) for file_path in file_paths]
@@ -334,8 +343,6 @@ def main():
         random.shuffle(c)
         train_list, train_reward = zip(*c)
         model_name = '../../data/PN-model-{}/pretrain-sac-model.pt'.format(A.mod)
-        if is_windows:
-            model_name = PureWindowsPath(model_name)
         train_sac(A.bs, train_list, valid_list, test_list, PN, epoch, model_name, train_reward, valid_reward, test_reward)
 
 
