@@ -6,7 +6,6 @@ import random
 import torch
 from torch.autograd import Variable
 import numpy as np
-from utils_npg import conjugate_gradient, flat_grad, flat_params
 
 
 def choose_start_facet(busi_id):

@@ -51,6 +51,7 @@ def main():
     parser.add_argument('-critic_lr', type=float, dest='critic_lr', help='critic learning rate')
     # learning rate of the Critic network
     parser.add_argument('-actor_decay', type=float, dest='actor_decay', help='actor weight decay')
+    parser.add_argument('-decay', type=float, dest='decay', help="weight decay for FM model")
     # weight decay
     parser.add_argument('-critic_decay', type=float, dest='critic_decay', help='critic weight decay')
     parser.add_argument('-TopKTaxo', type=int, dest='TopKTaxo', help='TopKTaxo')
@@ -199,7 +200,7 @@ def main():
         item_id = int(item)
 
         write_fp = '../../data/interaction-log/{}/v4-code-{}-s-{}-e-{}-lr-{}-gamma-{}-playby-{}-stra-{}-topK-{}-trick-{}-eval-{}-init-{}-mini-{}-always-{}-upcount-{}-upreg-{}-m-{}.txt'.format(
-            A.mod.lower(), A.code, A.startFrom, A.endAt, A.lr, A.gamma, A.playby, A.strategy, A.TopKTaxo, A.trick,
+            A.mod.lower(), A.code, A.startFrom, A.endAt, A.actor_lr, A.gamma, A.playby, A.strategy, A.TopKTaxo, A.trick,
             A.eval, A.initeval,
             A.mini, A.alwaysupdate, A.upcount, A.upreg, A.mask)
 
@@ -247,6 +248,7 @@ def main():
                 conversation_length_list.append(current_length)
             # end update
 
+            # Update SAC
             if A.purpose != 'pretrain':
                 with open(write_fp, 'a') as f:
                     f.write('Big features are: {}\n'.format(choose_pool))
