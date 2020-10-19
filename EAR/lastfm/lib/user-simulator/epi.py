@@ -137,7 +137,10 @@ def run_one_episode(FM_model, user_id, busi_id, MAX_TURN, do_random, write_fp, s
                 else:
                     return (numpy_list, rewards)
             else:
+                #if cfg.play_by != 'sac': 
                 return (the_agent.log_prob_list, rewards)
+                #else:
+                #    return (numpy_list, rewards)
 
         agent_utterance = the_agent.response(user_utterance)
 
@@ -164,4 +167,5 @@ def update_PN_model(model, log_prob_list, rewards, optimizer):
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
+
 # end def

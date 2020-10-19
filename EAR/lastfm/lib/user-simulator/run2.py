@@ -114,16 +114,24 @@ def main():
         if A.mod == 'crm':
             fp = '../../data/PN-model-crm/PN-model-crm.txt'
         if A.initeval == 1:
-            if A.mod == 'ear':
+            if A.mod == 'ear' and A.playby != 'sac':
                 fp = '../../data/PN-model-ear/pretrain-model.pt'
-            if A.mod == 'crm':
+            elif A.mod == 'ear' and A.playby == 'sac':
+                fp = '../../data/PN-model-ear/pretrain-sac-model.pt'
+            if A.mod == 'crm' and A.playby != 'sac':
                 fp = '../../data/PN-model-crm/pretrain-model.pt'
+            elif A.mod == 'crm' and A.playby == 'sac':
+                fp = '../../data/PN-model-ear/pretrain-sac-model.pt'   
     else:
         # means training
-        if A.mod == 'ear':
+        if A.mod == 'ear' and A.playby != 'sac':
             fp = '../../data/PN-model-ear/pretrain-model.pt'
-        if A.mod == 'crm':
+        elif A.mod == 'ear' and A.playby == 'sac':
+            fp = '../../data/PN-model-ear/pretrain-sac-model.pt'
+        if A.mod == 'crm' and A.playby != 'sac':
             fp = '../../data/PN-model-crm/pretrain-model.pt'
+        elif A.mod == 'crm' and A.playby == 'sac':
+            fp = '../../data/PN-model-ear/pretrain-sac-model.pt'
     INPUT_DIM = 0
     if A.mod == 'ear':
         INPUT_DIM = 89
@@ -154,6 +162,14 @@ def main():
     else:
         PN_model = SAC_Net(input_dim=INPUT_DIM, dim1=64, output_dim=34, actor_lr=A.actor_lr,
          critic_lr=A.critic_lr, discount_rate=gamma, actor_w_decay=A.actor_decay, critic_w_decay=A.critic_decay)
+        start = time.time()
+        try:
+            PN_model.load_state_dict(torch.load(fp))
+            print('Now Load PN-SAC pretrain from {}, takes {} seconds.'.format(fp, time.time() - start))
+        except:
+            print('Cannot load the model!!!!!!!!!\n fp is: {}'.format(fp))
+            if A.playby == 'sac':
+                sys.exit()
 
     numpy_list = list()
     rewards_list = list()
@@ -216,7 +232,7 @@ def main():
                 f.write(
                     'Starting new\nuser ID: {}, item ID: {} episode count: {}, feature: {}\n'.format(user_id, item_id, epi_count, cfg.item_dict[str(item_id)]['categories']))
             start_facet = c
-            if A.purpose != 'pretrain' and A.playby != 'sac':
+            if A.purpose != 'pretrain': #and A.playby != 'sac':
                 log_prob_list, rewards = run_one_episode(current_FM_model, user_id, item_id, A.mt, False, write_fp,
                                                          A.strategy, A.TopKTaxo,
                                                          PN_model, gamma, A.trick, A.mini,
@@ -249,6 +265,12 @@ def main():
             # end update
 
             # Update SAC
+            if A.playby == 'sac' and A.eval != 1:
+                update_PN_model(PN_model.actor_network, log_prob_list, rewards, PN_model.actor_optimizer)
+                print('updated SAC model')
+                current_length = len(log_prob_list)
+                conversation_length_list.append(current_length)
+
             if A.purpose != 'pretrain':
                 with open(write_fp, 'a') as f:
                     f.write('Big features are: {}\n'.format(choose_pool))
