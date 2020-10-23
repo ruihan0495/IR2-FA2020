@@ -325,6 +325,30 @@ CUDA_VISIBLE_DEVICES=0 python run.py -mt 15 -playby RO -optim SGD -lr 0.001 -fmC
 ```
 
 
+### 4.4 SAC-EAR
+ALL usages of SAC follows exactly the same as above.
+
+- SAC pretrain
+```
+python SAC.py -inputdim 89 -hiddendim 64 -outputdim 34 -bs 64 -actor_lr 0.001 -critic_lr 0.001 -actor_decay 0 -critic_decay 0 -discount_rate 0.7 -mod 'ear'
+```
+
+- EAR with SAC
+```bash
+# Training
+python run2.py -mt 15 -playby sac -optim SGD -actor_lr 0.001 -critic_lr 0.001 -fmCommand 8 -upoptim SGD -actor_decay 0 -decay 0 -critic_decay 0 -TopKTaxo 3 -gamma 0.7 -strategy maxent -startFrom 0 -endAt 
+1000 -eval 0 -initeval 0 -trick 0 -mini 1 -alwaysupdate 1 -upcount 1 -upreg 0.001 -code stable -mask 0 -purpose train -mod ear -use_sac True
+
+# Evaluation
+python run2.py -mt 15 -playby sac -optim SGD -actor_lr 0.001 -critic_lr 0.001 -fmCommand 8 -upoptim SGD -actor_decay 0 -decay 0 -critic_decay 0 -TopKTaxo 3 -gamma 0.7 -strategy maxent -startFrom 0 -endAt 
+1000 -eval 1 -initeval 0 -trick 0 -mini 1 -alwaysupdate 1 -upcount 1 -upreg 0.001 -code stable -mask 0 -purpose train -mod ear -use_sac True
+```
+
+- Run with pretrined SAC-EAR
+```
+python run2.py -mt 15 -playby sac -optim SGD -actor_lr 0.001 -critic_lr 0.001 -fmCommand 8 -upoptim SGD -actor_decay 0 -decay 0 -critic_decay 0 -TopKTaxo 3 -gamma 0.7 -strategy maxent -startFrom 0 -endAt 
+1000 -eval 1 -initeval 1 -trick 0 -mini 1 -alwaysupdate 1 -upcount 1 -upreg 0.001 -code stable -mask 0 -purpose pretrain -mod ear -use_sac True
+```
 
 ## 5. Licence and Patent
 

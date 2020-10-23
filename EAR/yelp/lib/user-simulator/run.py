@@ -25,7 +25,7 @@ import random
 import os.path
 import json
 import math
-import regex as re
+import re
 
 random.seed(1)
 
@@ -166,6 +166,7 @@ def main():
 
     sample_dict = defaultdict(list)
     conversation_length_list = list()
+    # 12135
     for epi_count in range(A.startFrom, A.endAt):
         if epi_count % 1 == 0:
             print('-----\nIt has processed {} episodes'.format(epi_count))

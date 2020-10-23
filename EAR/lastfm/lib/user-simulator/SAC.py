@@ -16,11 +16,6 @@ from pn import PolicyNetwork
 from pathlib import Path, PureWindowsPath
 from time import sleep
 
-'''
-Note: we have contacted the authors for the data file ptetrin-numpy-data-ear
-to re-train the actor-critc policy network from scratch. We also plan to incorporate the 
-online update for the policy network in reflection stage.
-'''
 def cuda_(var):
     return var.cuda() if torch.cuda.is_available() else var
 
@@ -32,7 +27,7 @@ class SAC_Net(nn.Module):
     def __init__(self, input_dim, output_dim, dim1, actor_lr, 
                 critic_lr, discount_rate, actor_w_decay, critic_w_decay):
         '''
-        params:
+        params: see below in main() for the detailed explanations in parser 
             
         '''
         super(SAC_Net, self).__init__()
@@ -67,6 +62,7 @@ class SAC_Net(nn.Module):
         _, action_probs, log_action_probs, _ = self.produce_action_info(batch_states)
         Vpi_1 = self.critic_network(batch_states)
         Vpi_2 = self.critic2_network(batch_states)
+        # Target is set to the minimum of value functions to reduce bias
         min_V = torch.min(Vpi_1, Vpi_2)
         policy_loss = (action_probs * (self.discount_rate * log_action_probs - min_V)).sum(dim=1).mean()
         batch_action = cuda_(torch.from_numpy(batch_action).long())
@@ -243,7 +239,7 @@ def train_sac(bs, train_list, valid_list, test_list,
         epoch_loss += actor_loss.data
         left, right = next_left, next_right
 
-        # Update target critic network
+        # Update target critic network with moving average
         for param, target_param in zip(model.critic_network.parameters(), model.critic1_target.parameters()):
                 target_param.data.copy_(0.005 * param.data + (1-0.005) * target_param.data)
         for param, target_param in zip(model.critic2_network.parameters(), model.critic2_target.parameters()):

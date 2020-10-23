@@ -1,12 +1,6 @@
 # BB-8 and R2-D2 are best friends.
-'''
-our customized module to run SAC-EAR framework, it also compatible with the original run.py,
-namely, you can also run the original EAR and CRM framework as well as other baselines
-with run2.py 
-'''
 
 import sys
-import os
 sys.path.insert(0, '../FM')
 sys.path.insert(0, '../yelp')
 
@@ -18,9 +12,8 @@ import time
 import numpy as np
 
 from config import global_config as cfg
-from epi import run_one_episode, update_PN_model, get_reward
+from epi import run_one_episode, update_PN_model
 from pn import PolicyNetwork
-from SAC import SAC_Net, train_sac
 import copy
 import random
 import json
@@ -34,6 +27,7 @@ for k, v in cfg.item_dict.items():
 print('The max is: {}'.format(the_max))
 FEATURE_COUNT = the_max + 1
 
+
 def cuda_(var):
     return var.cuda() if torch.cuda.is_available()else var
 
@@ -46,19 +40,14 @@ def main():
     # AO: (Ask Only and recommend by probability)
     # RO: (Recommend Only)
     # policy: (action decided by our policy network)
-    # sac: (action decided by our SAC network)
     parser.add_argument('-fmCommand', type=str, dest='fmCommand', help='fmCommand')
     # the command used for FM, check out /EAR/lastfm/FM/
     parser.add_argument('-optim', type=str, dest='optim', help='optimizer')
     # the optimizer for policy network
-    parser.add_argument('-actor_lr', type=float, dest='actor_lr', help='actor learning rate')
-    # learning rate of Actor network
-    parser.add_argument('-critic_lr', type=float, dest='critic_lr', help='critic learning rate')
-    # learning rate of the Critic network
-    parser.add_argument('-actor_decay', type=float, dest='actor_decay', help='actor weight decay')
-    parser.add_argument('-decay', type=float, dest='decay', help="weight decay for FM model")
+    parser.add_argument('-lr', type=float, dest='lr', help='lr')
+    # learning rate of policy network
+    parser.add_argument('-decay', type=float, dest='decay', help='decay')
     # weight decay
-    parser.add_argument('-critic_decay', type=float, dest='critic_decay', help='critic weight decay')
     parser.add_argument('-TopKTaxo', type=int, dest='TopKTaxo', help='TopKTaxo')
     # how many 2-layer feature will represent a big feature. Only Yelp dataset use this param, lastFM have no effect.
     parser.add_argument('-gamma', type=float, dest='gamma', help='gamma')
@@ -94,8 +83,6 @@ def main():
     # options: CRM, EAR
     parser.add_argument('-mask', type=int, dest='mask', help='mask')
     # use for ablation study, 1, 2, 3, 4 represent our four segments, {ent, sim, his, len}
-    parser.add_argument('-use_sac', type=bool, dest='use_sac', help='use_sac')
-    # true if the RL module uses SAC
 
     A = parser.parse_args()
 
@@ -119,64 +106,41 @@ def main():
         if A.mod == 'crm':
             fp = '../../data/PN-model-crm/PN-model-crm.txt'
         if A.initeval == 1:
-            if A.mod == 'ear' and A.playby != 'sac':
+            if A.mod == 'ear':
                 fp = '../../data/PN-model-ear/pretrain-model.pt'
-            elif A.mod == 'ear' and A.playby == 'sac':
-                fp = '../../data/PN-model-ear/pretrain-sac-model.pt'
-            if A.mod == 'crm' and A.playby != 'sac':
+            if A.mod == 'crm':
                 fp = '../../data/PN-model-crm/pretrain-model.pt'
-            elif A.mod == 'crm' and A.playby == 'sac':
-                fp = '../../data/PN-model-ear/pretrain-sac-model.pt'   
     else:
         # means training
-        if A.mod == 'ear' and A.playby != 'sac':
+        if A.mod == 'ear':
             fp = '../../data/PN-model-ear/pretrain-model.pt'
-        elif A.mod == 'ear' and A.playby == 'sac':
-            fp = '../../data/PN-model-ear/pretrain-sac-model.pt'
-        if A.mod == 'crm' and A.playby != 'sac':
+        if A.mod == 'crm':
             fp = '../../data/PN-model-crm/pretrain-model.pt'
-        elif A.mod == 'crm' and A.playby == 'sac':
-            fp = '../../data/PN-model-ear/pretrain-sac-model.pt'
     INPUT_DIM = 0
     if A.mod == 'ear':
         INPUT_DIM = 89
     if A.mod == 'crm':
         INPUT_DIM = 33
     print('fp is: {}'.format(fp))
+    PN_model = PolicyNetwork(input_dim=INPUT_DIM, dim1=64, output_dim=34)
+    start = time.time()
 
-    # Initialie the policy network to either PolicyNetwork or SAC-Net
-    if not A.use_sac:
-        PN_model = PolicyNetwork(input_dim=INPUT_DIM, dim1=64, output_dim=34)
-        start = time.time()
-        try:
-            PN_model.load_state_dict(torch.load(fp))
-            print('Now Load PN pretrain from {}, takes {} seconds.'.format(fp, time.time() - start))
-        except:
-            print('Cannot load the model!!!!!!!!!\n fp is: {}'.format(fp))
-            if A.playby == 'policy':
-                sys.exit()
-    
-        if A.optim == 'Adam':
-            optimizer = torch.optim.Adam(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
-        if A.optim == 'SGD':
-            optimizer = torch.optim.SGD(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
-        if A.optim == 'RMS':
-            optimizer = torch.optim.RMSprop(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
+    try:
+        PN_model.load_state_dict(torch.load(fp))
+        print('Now Load PN pretrain from {}, takes {} seconds.'.format(fp, time.time() - start))
+    except:
+        print('Cannot load the model!!!!!!!!!\n fp is: {}'.format(fp))
+        if A.playby == 'policy':
+            sys.exit()
 
-    else:
-        PN_model = SAC_Net(input_dim=INPUT_DIM, dim1=64, output_dim=34, actor_lr=A.actor_lr,
-         critic_lr=A.critic_lr, discount_rate=gamma, actor_w_decay=A.actor_decay, critic_w_decay=A.critic_decay)
-        start = time.time()
-        try:
-            PN_model.load_state_dict(torch.load(fp))
-            print('Now Load PN-SAC pretrain from {}, takes {} seconds.'.format(fp, time.time() - start))
-        except:
-            print('Cannot load the model!!!!!!!!!\n fp is: {}'.format(fp))
-            if A.playby == 'sac':
-                sys.exit()
+    if A.optim == 'Adam':
+        optimizer = torch.optim.Adam(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
+    if A.optim == 'SGD':
+        optimizer = torch.optim.SGD(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
+    if A.optim == 'RMS':
+        optimizer = torch.optim.RMSprop(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
 
     numpy_list = list()
-    rewards_list = list()
     NUMPY_COUNT = 0
 
     sample_dict = defaultdict(list)
@@ -220,7 +184,7 @@ def main():
         item_id = int(item)
 
         write_fp = '../../data/interaction-log/{}/v4-code-{}-s-{}-e-{}-lr-{}-gamma-{}-playby-{}-stra-{}-topK-{}-trick-{}-eval-{}-init-{}-mini-{}-always-{}-upcount-{}-upreg-{}-m-{}.txt'.format(
-            A.mod.lower(), A.code, A.startFrom, A.endAt, A.actor_lr, A.gamma, A.playby, A.strategy, A.TopKTaxo, A.trick,
+            A.mod.lower(), A.code, A.startFrom, A.endAt, A.lr, A.gamma, A.playby, A.strategy, A.TopKTaxo, A.trick,
             A.eval, A.initeval,
             A.mini, A.alwaysupdate, A.upcount, A.upreg, A.mask)
 
@@ -236,29 +200,19 @@ def main():
                 f.write(
                     'Starting new\nuser ID: {}, item ID: {} episode count: {}, feature: {}\n'.format(user_id, item_id, epi_count, cfg.item_dict[str(item_id)]['categories']))
             start_facet = c
-            if A.purpose != 'pretrain': #and A.playby != 'sac':
+            if A.purpose != 'pretrain':
                 log_prob_list, rewards = run_one_episode(current_FM_model, user_id, item_id, A.mt, False, write_fp,
                                                          A.strategy, A.TopKTaxo,
                                                          PN_model, gamma, A.trick, A.mini,
                                                          optimizer1_fm, optimizer2_fm, A.alwaysupdate, start_facet,
                                                          A.mask, sample_dict)
             else:
-                if A.playby != 'sac':
-                    current_np = run_one_episode(current_FM_model, user_id, item_id, A.mt, False, write_fp,
+                current_np = run_one_episode(current_FM_model, user_id, item_id, A.mt, False, write_fp,
                                                          A.strategy, A.TopKTaxo,
                                                          PN_model, gamma, A.trick, A.mini,
                                                          optimizer1_fm, optimizer2_fm, A.alwaysupdate, start_facet,
                                                          A.mask, sample_dict)
-                    numpy_list += current_np
-                
-                else:
-                    current_np, current_reward = run_one_episode(current_FM_model, user_id, item_id, A.mt, False, write_fp,
-                                                         A.strategy, A.TopKTaxo,
-                                                         PN_model, gamma, A.trick, A.mini,
-                                                         optimizer1_fm, optimizer2_fm, A.alwaysupdate, start_facet,
-                                                         A.mask, sample_dict)
-                    rewards_list += current_reward
-                    numpy_list += current_np        
+                numpy_list += current_np
 
             # update PN model
             if A.playby == 'policy' and A.eval != 1:
@@ -267,13 +221,6 @@ def main():
                 current_length = len(log_prob_list)
                 conversation_length_list.append(current_length)
             # end update
-
-            # Update SAC
-            if A.playby == 'sac' and A.eval != 1:
-                update_PN_model(PN_model.actor_network, log_prob_list, rewards, PN_model.actor_optimizer)
-                print('updated SAC model')
-                current_length = len(log_prob_list)
-                conversation_length_list.append(current_length)
 
             if A.purpose != 'pretrain':
                 with open(write_fp, 'a') as f:
@@ -284,32 +231,13 @@ def main():
 
         # Write to pretrain numpy.
         if A.purpose == 'pretrain':
-            if A.playby != 'sac':
-                if len(numpy_list) > 5000:
-                    with open('../../data/pretrain-numpy-data-{}/segment-{}-start-{}-end-{}.pk'.format(
-                            A.mod, NUMPY_COUNT, A.startFrom, A.endAt), 'wb') as f:
-                        pickle.dump(numpy_list, f)
-                        print('Have written 5000 numpy arrays!')
-                    NUMPY_COUNT += 1
-                    numpy_list = list()
-            else:
-                # In SAC mode, collect both numpy_list and rewards_list as training data 
-                if len(numpy_list) > 5000 or len(rewards_list) > 5000:
-                    assert len(rewards_list) == len(numpy_list), "rewards and state-action pairs have different size!"
-                    directory = '../../data/pretrain-sac-numpy-data-{}/segment-{}-start-{}-end-{}.pk'.format(
-                            A.mod, NUMPY_COUNT, A.startFrom, A.endAt)
-                    rewards_directory = '../../data/pretrain-sac-reward-data-{}/segment-{}-start-{}-end-{}.pk'.format(
-                            A.mod, NUMPY_COUNT, A.startFrom, A.endAt)
-                    with open(directory, 'wb') as f:
-                        pickle.dump(numpy_list, f)
-                        print('Have written 5000 numpy arrays for SAC!')
-                    with open(rewards_directory, 'wb') as f:
-                        pickle.dump(rewards_list, f)
-                        print('Have written 5000 rewrds for SAC!')
-                    NUMPY_COUNT += 1
-                    numpy_list = list()
-                    rewards_list = list()
-                
+            if len(numpy_list) > 5000:
+                with open('../../data/pretrain-numpy-data-{}/segment-{}-start-{}-end-{}.pk'.format(
+                        A.mod, NUMPY_COUNT, A.startFrom, A.endAt), 'wb') as f:
+                    pickle.dump(numpy_list, f)
+                    print('Have written 5000 numpy arrays!')
+                NUMPY_COUNT += 1
+                numpy_list = list()
         # numpy_list is a list of list.
         # e.g. numpy_list[0][0]: int, indicating the action.
         # numpy_list[0][1]: a one-d array of length 89 for EAR, and 33 for CRM.
