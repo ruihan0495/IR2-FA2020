@@ -148,7 +148,6 @@ def main():
     if not A.use_sac:
         PN_model = PolicyNetwork(input_dim=INPUT_DIM, dim1=64, output_dim=34)
         start = time.time()
-        PN_model.load_state_dict(torch.load(fp))
         try:
             PN_model.load_state_dict(torch.load(fp))
             print('Now Load PN pretrain from {}, takes {} seconds.'.format(fp, time.time() - start))
