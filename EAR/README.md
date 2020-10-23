@@ -330,8 +330,7 @@ ALL usages of SAC follows exactly the same as above.
 
 - SAC pretrain
 ```
-python SAC.py -inputdim 89 -hiddendim 64 -outputdim 34 -bs 
-64 -actor_lr 0.001 -critic_lr 0.001 -actor_decay 0 -critic_decay 0 -discount_rate 0.7 -mod 'ear'
+python SAC.py -inputdim 89 -hiddendim 64 -outputdim 34 -bs 64 -actor_lr 0.001 -critic_lr 0.001 -actor_decay 0 -critic_decay 0 -discount_rate 0.7 -mod 'ear'
 ```
 
 - EAR with SAC
