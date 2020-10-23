@@ -9,35 +9,34 @@ def eval_lastfm(fp_list):
     print('Evaluating LastFM')
     dir = '../lastfm/data/interaction-log/ear'
     f1 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-0.txt'
-    f2 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-1.txt'
-    f3 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-2.txt'
-    f4 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-3.txt'
-    f5 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-4.txt'
-    f6 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-0-always-0-upcount-0-upreg-0.001-m-0.txt'
+    f2 = 'v5-code-stable-s-0-e-2000-lr-0.001-gamma-0.7-playby-sac-stra-maxent-topK-3-trick-0-eval-0-init-0-mini-1-always-1-upcount-1-upreg-0.001-m-0.txt'
+    f3 = 'v5-code-stable-s-0-e-11800-lr-0.001-gamma-0.7-playby-sac-stra-maxent-topK-3-trick-0-eval-0-init-0-mini-1-always-1-upcount-1-upreg-0.001-m-0.txt'
     fp_list.append('{}/{}'.format(dir, f1))
     fp_list.append('{}/{}'.format(dir, f2))
     fp_list.append('{}/{}'.format(dir, f3))
-    fp_list.append('{}/{}'.format(dir, f4))
-    fp_list.append('{}/{}'.format(dir, f5))
-    fp_list.append('{}/{}'.format(dir, f6))
+
+
+    dir2 = '../lastfm/data/interaction-log/crm'
+    f4 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.7-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-0-always-0-upcount-0-upreg-0.001-m-0.txt'
+    fp_list.append('{}/{}'.format(dir2, f4))
+    #fp_list.append('{}/{}'.format(dir, f5))
+    #fp_list.append('{}/{}'.format(dir, f6))
+    #fp_list.append('{}/{}'.format(dir, f7))
+    #fp_list.append('{}/{}'.format(dir, f8))
     return
 
 
 def eval_yelp(fp_list):
     print('Evaluating Yelp')
     dir = '../yelp/data/interaction-log/ear'
-    f1 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-0-always-0-upcount-0-upreg-0.001-m-0.txt'
-    f2 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-0.txt'
-    f3 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-2.txt'
-    f4 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-3.txt'
-    f5 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-4.txt'
-    f6 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-0-always-0-upcount-0-upreg-0.001-m-0.txt'
+    f1 = 'v5-code-stable-s-0-e-1000-lr-0.001-gamma-0.7-playby-sac-stra-maxent-topK-3-trick-0-eval-0-init-0-mini-1-always-1-upcount-1-upreg-0.001-m-0.txt'
+    f2 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.7-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-1-upreg-0.001-m-0.txt'
     fp_list.append('{}/{}'.format(dir, f1))
     fp_list.append('{}/{}'.format(dir, f2))
-    fp_list.append('{}/{}'.format(dir, f3))
-    fp_list.append('{}/{}'.format(dir, f4))
-    fp_list.append('{}/{}'.format(dir, f5))
-    fp_list.append('{}/{}'.format(dir, f6))
+
+    dir2 = '../yelp/data/interaction-log/crm'
+    f3 = 'v4-code-stable-s-0-e-20000-lr-0.001-gamma-0.0-playby-policy-stra-maxent-topK-3-trick-0-eval-1-init-0-mini-1-always-1-upcount-4-upreg-0.001-m-0.txt'
+    fp_list.append('{}/{}'.format(dir2, f3))
     return
 
 
@@ -172,7 +171,7 @@ def parse(episodes, lth, rth, turncnt):
 
 if __name__ == '__main__':
     # choose what you want to evaluate
-    # eval_lastfm(fp_list)
+    #eval_lastfm(fp_list)
     eval_yelp(fp_list)
 
     for fp in fp_list:

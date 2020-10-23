@@ -114,7 +114,7 @@ class _Config():
         model = FactorizationMachine(emb_size=64, user_length=len(self.user_list), item_length=len(self.item_dict),
                                      feature_length=feature_max + 1, qonly=1, command=8, hs=64, ip=0.01,
                                      dr=0.5, old_new='new')
-        model.load_state_dict(torch.load(fp))
+        model.load_state_dict(torch.load(fp, map_location=torch.device('cpu')))
         print('load FM model {}'.format(fp))
         self.emb_matrix = model.feature_emb.weight[..., :-1].detach().numpy()
         self.user_emb = model.ui_emb.weight[..., :-1].detach().numpy()
@@ -145,7 +145,7 @@ class _Config():
                                         feature_length=feature_max + 1, qonly=1, command=6, hs=64, ip=0.01,
                                         dr=0.5, old_new='new')
            start = time.time()
-           model.load_state_dict(torch.load(fp))
+           model.load_state_dict(torch.load(fp, map_location=torch.device('cpu')))
            print('load FM model {} takes: {} secs'.format(fp, time.time() - start))
            self.FM_model = cuda_(model)
 

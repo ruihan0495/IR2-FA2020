@@ -507,6 +507,8 @@ class agent():
 
             self.action_tracker.append(action.data.numpy().tolist())
             self.candidate_length_tracker.append(len(self.recent_candidate_list))
+        else:
+            new_message = self.prepare_rec_message()
 
         # following are for writing to numpy array
         action = None
