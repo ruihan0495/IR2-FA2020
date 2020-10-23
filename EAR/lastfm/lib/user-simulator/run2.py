@@ -148,7 +148,7 @@ def main():
     if not A.use_sac:
         PN_model = PolicyNetwork(input_dim=INPUT_DIM, dim1=64, output_dim=34)
         start = time.time()
-
+        PN_model.load_state_dict(torch.load(fp))
         try:
             PN_model.load_state_dict(torch.load(fp))
             print('Now Load PN pretrain from {}, takes {} seconds.'.format(fp, time.time() - start))
@@ -156,7 +156,7 @@ def main():
             print('Cannot load the model!!!!!!!!!\n fp is: {}'.format(fp))
             if A.playby == 'policy':
                 sys.exit()
-        
+    
         if A.optim == 'Adam':
             optimizer = torch.optim.Adam(PN_model.parameters(), lr=A.lr, weight_decay=A.decay)
         if A.optim == 'SGD':
