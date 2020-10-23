@@ -67,6 +67,7 @@ class SAC_Net(nn.Module):
         _, action_probs, log_action_probs, _ = self.produce_action_info(batch_states)
         Vpi_1 = self.critic_network(batch_states)
         Vpi_2 = self.critic2_network(batch_states)
+        # Target is set to the minimum of value functions to reduce bias
         min_V = torch.min(Vpi_1, Vpi_2)
         policy_loss = (action_probs * (self.discount_rate * log_action_probs - min_V)).sum(dim=1).mean()
         batch_action = cuda_(torch.from_numpy(batch_action).long())

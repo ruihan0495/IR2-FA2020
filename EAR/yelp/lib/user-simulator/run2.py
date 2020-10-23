@@ -1,4 +1,9 @@
 # BB-8 and R2-D2 are best friends.
+'''
+our customized module to run SAC-EAR framework, it also compatible with the original run.py,
+namely, you can also run the original EAR and CRM framework as well as other baselines
+with run2.py 
+'''
 
 import sys
 import os
